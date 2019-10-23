@@ -1,6 +1,7 @@
 from __future__ import print_function
 from petram.helper.matrix_file import write_coo_matrix, write_vector
 
+import traceback
 import sys
 import os
 import six
@@ -8,6 +9,7 @@ import shutil
 import traceback
 import numpy as np
 import scipy.sparse
+import inspect
 from warnings import warn
 
 from petram.mfem_config import use_parallel
@@ -18,8 +20,6 @@ else:
     import mfem.ser as mfem
 import mfem.common.chypre as chypre
 
-# these are only for debuging
-from mfem.common.parcsr_extra import ToScipyCoo
 from mfem.common.mpi_debug import nicePrint
 
 from petram.model import Domain, Bdry, Point, Pair
@@ -32,6 +32,45 @@ dprint1, dprint2, dprint3 = petram.debug.init_dprints('Engine')
 #import warnings
 #warnings.filterwarnings('error', category=scipy.sparse.SparseEfficiencyWarning)
 
+def lineno():
+      """Returns the current line number in our program."""
+      return inspect.currentframe().f_back.f_lineno
+
+def func_name():
+      """Returns the current line number in our program."""
+      return inspect.currentframe().f_back.f_code.co_name
+
+def inspect_fes(fes, lno):
+  print(">>> BEGIN --- PYCORE DEBUG CALLED AT LINE ", lno)
+  if fes.__class__.__name__ == "ParFiniteElementSpace":
+    print(">   fes object is ", fes)
+    print(">   fes par mesh object is ", fes.GetParMesh())
+    print(">   fes par mesh hex id  ", hex(id(fes.GetParMesh())))
+    print(">   fes     mesh object is ", fes.GetMesh())
+    print(">   fes     mesh hex id  ", hex(id(fes.GetMesh())))
+  print(">>> END   --- PYCORE DEBUG")
+  print("")
+
+def inspect_fes_conform(fes, lno):
+  print(">>> BEGIN --- PYCORE DEBUG CALLED AT LINE ", lno)
+  if fes.__class__.__name__ == "ParFiniteElementSpace":
+    print(">   fes object is ", fes)
+    print(">   fes par mesh object is ", fes.GetParMesh())
+    print(">   fes     mesh object is ", fes.GetMesh())
+    print(">   fes par mesh conform ", fes.GetParMesh().Conforming())
+    print(">   fes     mesh object conform ", fes.GetMesh().Conforming())
+  print(">>> END   --- PYCORE DEBUG")
+  print("")
+
+
+def inspect_function_call(slf, fname, lno):
+  print(">>> BEGIN --- PYCORE DEBUG CALLED AT LINE ", lno)
+  print(">   in function ", fname, " of class ", slf.__class__.__name__)
+  print(">>> END   --- PYCORE DEBUG")
+  print("")
+
+
+>>>>>>> Working version of engine.py
 
 def iter_phys(phys_targets, *args):
     for phys in phys_targets:
@@ -625,7 +664,9 @@ class Engine(object):
             self.build_ns()
             self.assign_phys_pp_sel_index()                    
             self.run_mesh_extension_prep()        
+	    # inspect_function_call(self, func_name(), lineno())
             self.assign_sel_index()
+	    # inspect_function_call(self, func_name(), lineno())
         except:
             exception = traceback.format_exc()
             return -2, exception
@@ -650,16 +691,14 @@ class Engine(object):
 
             self.run_mesh_extension(phys)
             self.allocate_fespace(phys)
-            # this is called already from preprocess_modeldata
-            #
             for node in phys.walk():
                 if not node.enabled:
                     continue
                 node.preprocess_params(self)
-
         for k in self.model['InitialValue'].keys():
             init = self.model['InitialValue'][k]
             init.preprocess_params(self)
+        # inspect_function_call(self, func_name(), lineno())
 
     def run_verify_setting(self, phys_target, solver):
         for phys in phys_target:
@@ -1163,6 +1202,7 @@ class Engine(object):
         # self.assign_sel_index(phys)
 
         self.allocate_fespace(phys)
+        # inspect_function_call(self, func_name(), lineno())
         true_v_sizes = self.get_true_v_sizes(phys)
 
         flags = self.get_essential_bdr_flag(phys)
@@ -2728,6 +2768,10 @@ class Engine(object):
         sdim = mesh.SpaceDimension()
         dim = mesh.Dimension()
 
+        if self.__class__.__name__ == "ParallelEngine":
+	  if self.pcounter == 0:
+	    isParMesh = False
+
         is_new = False
         key = (emesh_idx, elem, order, dim, sdim, vdim, isParMesh)
         dkey = ("emesh_idx", "elem", "order",
@@ -2790,6 +2834,7 @@ class Engine(object):
                 assert False, "Unknown refinement mode"
 
     def get_fes(self, phys, kfes=0, name=None):
+
         if name is None:
             name = phys.dep_vars[kfes]
             return self.fespaces[name]
@@ -3752,8 +3797,10 @@ class ParallelEngine(Engine):
     def __init__(self, modelfile='', model=None):
         super(ParallelEngine, self).__init__(modelfile=modelfile, model=model)
         self.isParallel = True
+        self.pcounter = 0
 
-    def run_mesh(self, meshmodel=None):
+    def run_mesh(self, meshmodel = None):
+        import pyCore
         from mpi4py import MPI
         from petram.mesh.mesh_model import MeshFile, MFEMMesh
         from petram.mesh.mesh_extension import MeshExt
@@ -3810,9 +3857,9 @@ class ParallelEngine(Engine):
                         self.base_meshes[idx] = mfem.ParMesh(
                             MPI.COMM_WORLD, smesh, parts)
                         self.meshes[idx] = self.base_meshes[idx]
+
                         target = self.meshes[idx]
 
-                        #self.base_meshes[idx] = self.meshes[idx]
                     else:
                         if hasattr(o, 'run') and target is not None:
                             target = self.new_mesh_from_mesh(target)
@@ -3859,14 +3906,20 @@ class ParallelEngine(Engine):
 
         return gf
 
-    def new_fespace(self, mesh, fec, vdim):
-        if hasattr(mesh, 'GetComm'):
-            return mfem.ParFiniteElementSpace(mesh, fec, vdim)
+    def new_fespace(self,mesh, fec, vdim):
+        if mesh.__class__.__name__ == 'ParMesh' and self.pcounter > 0:
+            self.pcounter += 1
+            return  mfem.ParFiniteElementSpace(mesh, fec, vdim)
+	elif mesh.__class__.__name__ == 'ParPumiMesh' and self.pcounter > 0:
+            self.pcounter += 1
+	    aux_mesh = mfem.ParMesh(MPI.COMM_WORLD, mesh)
+            return  mfem.ParFiniteElementSpace(aux_mesh, fec, vdim)
         else:
-            return mfem.FiniteElementSpace(mesh, fec, vdim)
-
-    def new_matrix(self, init=True):
-        return mfem.HypreParMatrix()
+            self.pcounter += 1
+            return  mfem.FiniteElementSpace(mesh, fec, vdim)
+         
+    def new_matrix(self, init = True):
+        return  mfem.HypreParMatrix()
 
     def new_blockmatrix(self, shape):
         from petram.helper.block_matrix import BlockMatrix
