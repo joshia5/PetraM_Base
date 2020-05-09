@@ -2769,8 +2769,8 @@ class Engine(object):
         dim = mesh.Dimension()
 
         if self.__class__.__name__ == "ParallelEngine":
-	  if self.pcounter == 0:
-	    isParMesh = False
+            if self.pcounter == 0:
+                isParMesh = False
 
         is_new = False
         key = (emesh_idx, elem, order, dim, sdim, vdim, isParMesh)
@@ -3910,9 +3910,9 @@ class ParallelEngine(Engine):
         if mesh.__class__.__name__ == 'ParMesh' and self.pcounter > 0:
             self.pcounter += 1
             return  mfem.ParFiniteElementSpace(mesh, fec, vdim)
-	elif mesh.__class__.__name__ == 'ParPumiMesh' and self.pcounter > 0:
+        elif mesh.__class__.__name__ == 'ParPumiMesh' and self.pcounter > 0:
             self.pcounter += 1
-	    aux_mesh = mfem.ParMesh(MPI.COMM_WORLD, mesh)
+            aux_mesh = mfem.ParMesh(MPI.COMM_WORLD, mesh)
             return  mfem.ParFiniteElementSpace(aux_mesh, fec, vdim)
         else:
             self.pcounter += 1
