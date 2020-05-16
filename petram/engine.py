@@ -3858,6 +3858,7 @@ class ParallelEngine(Engine):
                             MPI.COMM_WORLD, smesh, parts)
                         self.meshes[idx] = self.base_meshes[idx]
 
+
                         target = self.meshes[idx]
 
                     else:
