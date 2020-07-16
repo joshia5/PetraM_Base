@@ -3854,10 +3854,14 @@ class ParallelEngine(Engine):
                             else:
                                 parts = None
 
-                        self.base_meshes[idx] = mfem.ParMesh(
-                            MPI.COMM_WORLD, smesh, parts)
-                        self.meshes[idx] = self.base_meshes[idx]
-
+                        key_str = k[0:-1]
+                        if key_str == "PumiMesh":
+                          self.base_meshes[idx] = smesh
+                          self.meshes[idx] = self.base_meshes[idx]
+                        else:
+                          self.base_meshes[idx] = mfem.ParMesh(
+                              MPI.COMM_WORLD, smesh, parts)
+                          self.meshes[idx] = self.base_meshes[idx]
 
                         target = self.meshes[idx]
 
