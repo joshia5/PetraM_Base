@@ -29,13 +29,25 @@ def get_field_z_averaged(pumi_mesh, field_name, field_type, grid):
     assert False, "numbering \"local_vert_numbering\" was not found"
 
 
-  # create the necessary fields
-  field_z = pyCore.createFieldOn(pumi_mesh, field_name, field_type)
-  dim = pumi_mesh.getDimension()
-  count_field = pyCore.createFieldOn(pumi_mesh, "count_field", pyCore.SCALAR)
-  sol_field = pyCore.createFieldOn(pumi_mesh, "sol_field_averaged", pyCore.VECTOR)
+def limit_refine_level(pumi_mesh, sizefield, level):
+  # TODO: this needs to be updated for parallel runs to use cavity ops
+  it = pumi_mesh.begin(0)
+  while True:
+    ent = pumi_mesh.iterate(it)
+    if not ent:
+      break
+    current_size = pumi_mesh.measureSize(ent)
+    computed_size = pyCore.getScalar(sizefield, ent, 0)
+    if computed_size < current_size / (2**level):
+      computed_size = current_size / (2**level)
+    # if computed_size > current_size:
+    #   computed_size = current_size;
+    pyCore.setScalar(sizefield, ent, 0, computed_size)
+  pumi_mesh.end(it)
+  pyCore.synchronize(sizefield)
 
-  # initialize the count and sol field to zero
+def limit_coarsen(pumi_mesh, sizefield, ratio):
+  # TODO: this needs to be updated for parallel runs to use cavity ops
   it = pumi_mesh.begin(0)
   while True:
     ent = pumi_mesh.iterate(it)
@@ -45,6 +57,7 @@ def get_field_z_averaged(pumi_mesh, field_name, field_type, grid):
     p = pyCore.Vector3(0.0, 0.0, 0.0)
     pyCore.setVector(sol_field, ent, 0, p)
   pumi_mesh.end(it)
+  pyCore.synchronize(sizefield)
 
   it = pumi_mesh.begin(dim)
   eid = 0
