@@ -166,8 +166,20 @@ class PumiMesh(Mesh):
         # in the GUI. But when we call loadMdsMesh the number has to be dropped. That is, the
         # mesh name provided to loadMdsMesh should be name.smb
         pumi_mesh_path = mesh_path[0:-5] + ".smb"
-        pumi_mesh = pyCore.loadMdsMesh(model_path, pumi_mesh_path)
-        
+
+        pumi_mesh = 0;
+        if gmodel == 0:
+            pumi_mesh = pyCore.loadMdsMesh(".null", pumi_mesh_path)
+        else:
+            pumi_mesh = pyCore.loadMdsMesh(gmodel, pumi_mesh_path)
+
+        mesh_shape = pumi_mesh.getShape()
+        mesh_order = mesh_shape.getOrder()
+
+	if not mesh_order == 1:
+            bezier_curver = pyCore.BezierCurver(pumi_mesh, 2, 0);
+            bezier_curver.run();
+
         self.root()._pumi_mesh = pumi_mesh # hack to be able to access pumi_mesh later!
 
         #     globals()['is_licenses_initialized'] = True

@@ -1195,7 +1195,7 @@ class Engine(object):
                 continue
             mm.update_param()
 
-    def initialize_phys(self, phys):
+    def initialize_phys(self, phys,update=False):
         is_complex = phys.is_complex()
 
         # this is called from preprocess_modeldata
@@ -1203,6 +1203,14 @@ class Engine(object):
 
         self.allocate_fespace(phys)
         # inspect_function_call(self, func_name(), lineno())
+        if not update:
+            self.allocate_fespace(phys)
+        else:
+            # old_true_v_sizes = self.get_true_v_sizes(phys)
+            for key in self.fecfes_storage:
+                fec, fes = self.fecfes_storage[key]
+                fes.Update(False)
+        # self.allocate_fespace(phys)
         true_v_sizes = self.get_true_v_sizes(phys)
 
         flags = self.get_essential_bdr_flag(phys)
