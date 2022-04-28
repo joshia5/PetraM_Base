@@ -368,7 +368,15 @@ class StdMeshAdaptSolver(StdSolver):
         if return_instance:
             return instance
         # We dont use probe..(no need...)
-        # instance.configure_probes(self.probe)
+
+        #instance.configure_probes(self.probe)
+
+        # get the fespaces order
+        # TODO: there must be a better way to do this
+        # assert len(engine.model['Phys'].keys())==1, "only can handle 1 physics model"
+        order = 0
+        for k in engine.model['Phys'].keys():
+            order = engine.model['Phys'][k].order
 
         if self.init_only:
             engine.sol = engine.assembled_blocks[1][0]
@@ -439,6 +447,40 @@ class StdMeshAdaptSolver(StdSolver):
             cap_field_by_size(pumi_mesh, e_imag_ip, 15.0);
 
 
+            # add fields that need to be transferred here
+            e_phi_r = pyCore.createField(pumi_mesh,
+                                         "e_phi_r",
+                                          pyCore.SCALAR,
+                                          pyCore.getH1Shape(order))
+            e_phi_i = pyCore.createField(pumi_mesh,
+                                         "e_phi_i",
+                                          pyCore.SCALAR,
+                                          pyCore.getH1Shape(order))
+            e_phi_r_mag = pyCore.createField(pumi_mesh,
+                                             "e_phi_r_mag",
+                                             pyCore.SCALAR,
+                                             pyCore.getH1Shape(order))
+            e_phi_i_mag = pyCore.createField(pumi_mesh,
+                                             "e_phi_i_mag",
+                                             pyCore.SCALAR,
+                                             pyCore.getH1Shape(order))
+
+            ifes = engine.r_ifes("rEf")
+            e_phi_r_gf = engine.r_x[ifes]
+            e_phi_i_gf = engine.i_x[ifes]
+            par_pumi_mesh.FieldMFEMtoPUMI(pumi_mesh, e_phi_r_gf, e_phi_r, e_phi_r_mag)
+            par_pumi_mesh.FieldMFEMtoPUMI(pumi_mesh, e_phi_i_gf, e_phi_i, e_phi_i_mag)
+
+            pumi_mesh.removeField(e_phi_r_mag)
+            pyCore.destroyField(e_phi_r_mag)
+            pumi_mesh.removeField(e_phi_i_mag)
+            pyCore.destroyField(e_phi_i_mag)
+
+            # v_0 = e_phi_gf.GetTrueDofs();
+            # dprint1("v0", v_0)
+            # dprint1(">>>>>>> ==== vector norm of v_0 is ", v_0.Norml2())
+
+
             # pumi_projected_nedelec_field = pumi_projected_nedelec_field_real
             # print("user choose the indicator ", self.mesh_adapt_indicator)
             # indicator_field = 0;
@@ -496,6 +538,16 @@ class StdMeshAdaptSolver(StdSolver):
             adapt_input.maximumIterations = 3
             adapt_input.goodQuality = 0.35 * 0.35 * 0.35 # mean-ratio cubed
 
+            # DEBUG for debugging order 1 case
+            # if adapt_loop_no == 0:
+            #     adapt_input = pyCore.configureUniformRefine(pumi_mesh, 1)
+            # else:
+            #     adapt_input = pyCore.configure(pumi_mesh, size_field)
+            #     adapt_input.shouldFixShape = True
+            #     adapt_input.shouldCoarsen = True
+            #     adapt_input.maximumIterations = 3
+            #     adapt_input.goodQuality = 0.35 * 0.35 * 0.35 # mean-ratio cubed
+
             if mesh_order == 1:
                 pyCore.adaptVerbose(adapt_input)
             else:
@@ -509,8 +561,9 @@ class StdMeshAdaptSolver(StdSolver):
             #     pyCore.writeCurvedWireFrame(pumi_mesh, 8, after_prefix);
 
             if mesh_order == 1:
-                native_name = "pumi_mesh_after_adapt_"+str(adapt_loop_no)+".smb";
+                native_name = "pumi_mesh_after_adapt_"+str(adapt_loop_no)+"_.smb";
                 pumi_mesh.writeNative(native_name)
+
 
             # clean up rest of the fields
             pumi_mesh.removeField(e_real_projected)
@@ -564,6 +617,7 @@ class StdMeshAdaptSolver(StdSolver):
             # self.root()._par_pumi_mesh = par_pumi_mesh
             # self.root()._pumi_mesh = pumi_mesh
 
+
             # engine.meshes[0] = mfem.ParMesh(pyCore.PCU_Get_Comm(), par_pumi_mesh)
             engine.emeshes[0] = engine.meshes[0]
             # reorient the new mesh
@@ -575,8 +629,50 @@ class StdMeshAdaptSolver(StdSolver):
             instance.set_blk_mask()
             instance.ma_update_assemble()
             instance.solve()
+
             adapt_loop_no = adapt_loop_no + 1
             instance.ma_save_mfem(adapt_loop_no, parmesh = True)
+
+            # measure error as the difference between e_phi_gf_transferred and e_phi_gf_new
+            ifes_new = engine.r_ifes("rEf")
+            e_phi_gf_r_new = engine.r_x[ifes_new]
+            e_phi_gf_i_new = engine.i_x[ifes_new]
+
+            # project e_phi back to an mfem gridfunction
+            e_phi_gf_r_transferred = mfem.ParGridFunction(e_phi_gf_r_new.ParFESpace())
+            par_pumi_mesh.FieldPUMItoMFEM(pumi_mesh, e_phi_r, e_phi_gf_r_transferred)
+            pumi_mesh.removeField(e_phi_r)
+            pyCore.destroyField(e_phi_r)
+
+
+            e_phi_gf_i_transferred = mfem.ParGridFunction(e_phi_gf_i_new.ParFESpace())
+            par_pumi_mesh.FieldPUMItoMFEM(pumi_mesh, e_phi_i, e_phi_gf_i_transferred)
+            pumi_mesh.removeField(e_phi_i)
+            pyCore.destroyField(e_phi_i)
+
+            # e_phi_gf_r_new -= e_phi_gf_r_transferred
+            # e_phi_gf_i_new -= e_phi_gf_i_transferred
+            # zero_const_coeff = mfem.ConstantCoefficient(0.0)
+            # l2_error_r = e_phi_gf_r_new.ComputeL2Error(zero_const_coeff)
+            # l2_error_i = e_phi_gf_i_new.ComputeL2Error(zero_const_coeff)
+            # dprint1(">>>>>>> ==== l2 errors r/i are ", l2_error_r, l2_error_i)
+
+            instance.ma_save_diffs(adapt_loop_no,
+            	e_phi_gf_r_transferred, e_phi_gf_r_new,
+            	e_phi_gf_i_transferred, e_phi_gf_i_new, parmesh = True)
+
+
+            # v_1 = e_phi_gf_transferred.GetTrueDofs()
+            # v_2 = e_phi_gf_new.GetTrueDofs()
+            # dprint1("v1", v_1)
+            # dprint1(">>>>>>> ==== vector norm of v_1 is ", v_1.Norml2())
+            # dprint1("v2", v_2)
+            # dprint1(">>>>>>> ==== vector norm of v_2 is ", v_2.Norml2())
+
+            # v_2 -= v_1
+            # dprint1("v2-v1", v_2)
+            # dprint1(">>>>>>> ==== vector norm of difference is ", v_2.Norml2())
+
         return is_first
 
 class StandardMeshAdaptSolver(StandardSolver):
@@ -636,6 +732,51 @@ class StandardMeshAdaptSolver(StandardSolver):
                             mesh_only = False,
                             save_parmesh = True)
         engine.save_extra_to_file(extra_data)
+
+        # go back to the original working directory
+        os.chdir(od)
+    def ma_save_diffs(self, loop_num, g1_r, g2_r, g1_i, g2_i, parmesh = True):
+        engine = self.engine
+
+        # take care of sub-folders here
+        sub_folder = "case_" + str(loop_num).zfill(3)
+        od = os.getcwd()
+        path = os.path.join(od, sub_folder)
+        os.chdir(path)
+
+        fnamer, fnamei = engine.solfile_name('ephi_before', 0)
+        suffix = engine.solfile_suffix()
+        fnamer = fnamer+suffix
+        fnamei = fnamei+suffix
+        g1_r.Save(fnamer, 8)
+        g1_i.Save(fnamei, 8)
+
+        fnamer, fnamei = engine.solfile_name('ephi_after', 0)
+        suffix = engine.solfile_suffix()
+        fnamer = fnamer+suffix
+        fnamei = fnamei+suffix
+        g2_r.Save(fnamer, 8)
+        g2_i.Save(fnamei, 8)
+
+        g2_r -= g1_r
+        g2_i -= g1_i
+
+        fnamer, fnamei = engine.solfile_name('ephi_diff', 0)
+        suffix = engine.solfile_suffix()
+        fnamer = fnamer+suffix
+        fnamei = fnamei+suffix
+        g2_r.Save(fnamer, 8)
+        g2_i.Save(fnamei, 8)
+
+
+        zero_const_coeff = mfem.ConstantCoefficient(0.0)
+        l2_error_r = g2_r.ComputeL2Error(zero_const_coeff)
+        l2_error_i = g2_i.ComputeL2Error(zero_const_coeff)
+        dprint1(">>>>>>> ==== l2 errors r/i are ", l2_error_r, l2_error_i)
+
+        # revert back the changes in g2s
+        g2_r += g1_r
+        g2_i += g1_i
 
         # go back to the original working directory
         os.chdir(od)
