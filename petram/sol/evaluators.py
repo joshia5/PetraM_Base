@@ -43,13 +43,15 @@ def evaluator_cls():
     from petram.sol.ncedge_evaluator import NCEdgeEvaluator    
     from petram.sol.probe_evaluator import ProbeEvaluator
     from petram.sol.pointcloud_evaluator import PointcloudEvaluator
+    from petram.sol.integral_evaluator import IntegralEvaluator    
     
     return {'BdrNodal': BdrNodalEvaluator,
             'EdgeNodal': EdgeNodalEvaluator,
             'NCFace':   NCFaceEvaluator,
             'NCEdge':   NCEdgeEvaluator,                        
             'Slice': SliceEvaluator,
-            'Pointcloud': PointcloudEvaluator, 
+            'Pointcloud': PointcloudEvaluator,
+            'Integral': IntegralEvaluator,             
             'Probe': ProbeEvaluator,}    
 
 class Evaluator(object):
@@ -151,6 +153,26 @@ class EvaluatorCommon(Evaluator):
         
         phys_root = self.mfem_model()["Phys"]
         solvars = phys_root.make_solvars(solsets.set)
+
+        ### Setting _emesh_idx from emesh_idx in GridFunction
+        for phys in phys_root:
+            vnames = phys_root[phys].dep_vars
+            gf_var = None
+            for name in vnames:
+                if name not in solvars[0]: continue
+                gf_var = solvars[0][name]
+                break
+
+            if gf_var is not None and hasattr(gf_var, "deriv_args"):
+                gf_real, gf_imag = gf_var.deriv_args
+                eidx = gf_real._emesh_idx if gf_real is not None else gf_imag._emesh_idx
+                phys_root[phys]._emesh_idx = eidx
+            else:
+                # For this variable, correnspoinding GridFunction does not exists.
+                # This happens when solution does not exists for a particular variable.
+                # We are not plotting this anyway. But we need to set something
+                # instead of stopping it here.
+                phys_root[phys]._emesh_idx = -1
         
         pp_root = self.mfem_model()["PostProcess"]        
         solvars = pp_root.add_solvars(solsets.set, solvars)
@@ -175,11 +197,12 @@ class EvaluatorCommon(Evaluator):
     def make_agents(self, name, params, **kwargs):
         if name == 'Probe':
             self.make_probe_agents(name, params, **kwargs)
+        elif name == 'Pointcloud':
+            self.make_pointcloud_agents(name, params, **kwargs)
+        elif name == 'Integral':
+            self.make_integral_agents(name, params, **kwargs)            
         else:
-            if name == 'Pointcloud':
-                self.make_pointcloud_agents(name, params, **kwargs)
-            else:
-                self.make_nodalslice_agents(name, params, **kwargs)
+            self.make_nodalslice_agents(name, params, **kwargs)
         
     def make_nodalslice_agents(self, name, params, **kwargs):
         print("making new agents", name, params, kwargs)
@@ -196,6 +219,21 @@ class EvaluatorCommon(Evaluator):
                 
     def make_pointcloud_agents(self, name, params, **kwargs):
         print("making new pc agents", name, params, kwargs)
+        super(EvaluatorCommon, self).make_agents(name, params, **kwargs)
+        self.agents = {}
+        cls = evaluator_cls()[name]
+        solsets = self.solsets
+
+        params = tuple(params)
+        self.agents[params] = []
+
+        for m, void in solsets:
+            a = cls(params, **kwargs)
+            a.set_mesh(m)
+            self.agents[params].append(a)
+
+    def make_integral_agents(self, name, params, **kwargs):
+        print("making new integral agents", name, params, kwargs)
         super(EvaluatorCommon, self).make_agents(name, params, **kwargs)
         self.agents = {}
         cls = evaluator_cls()[name]
@@ -230,17 +268,6 @@ class EvaluatorCommon(Evaluator):
     def terminate_all(self):        
         pass
     
-
-'''                
-from petram.sol.bdr_nodal_evaluator import BdrNodalEvaluator    
-from petram.sol.slice_evaluator import SliceEvaluator
-from petram.sol.edge_nodal_evaluator import EdgeNodalEvaluator
-from petram.sol.pointcloud_evaluator import PointcloudEvaluator
-evaluator_cls = {'BdrNodal': BdrNodalEvaluator,
-                 'EdgeNodal': EdgeNodalEvaluator,
-                 'Slice': SliceEvaluator,
-                 'Points': PointcloudEvaluator,}
-'''
 def_config = {'use_mp': False,
               'use_cs': False,
               'mp_worker': 2,
@@ -281,7 +308,7 @@ def build_evaluator(params,
     if name != 'Probe':  #probe evaluator does not load solfiles.
         evaluator.set_solfiles(solfiles)
         evaluator.load_solfiles()
-        
+
     evaluator.make_agents(name, params, **kwargs)
     
     return evaluator

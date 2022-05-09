@@ -695,10 +695,14 @@ def get_extended_connectivity(mesh):
     else:
         lp = bdr_loop(mesh)        
         v2s = None; s2l = None
-        l2e = {k:k for k in lp.keys()}
+        attrs = mesh.GetAttributeArray()        
+        l2e = {k:list(np.where(attrs==k)[0]) for k in lp.keys()}
         l2v = bdr_loop(mesh)
         v = np.unique(np.hstack([lp[k] for k in lp.keys()]))
-        v2v = {k:k for k in v}
+        battrs = mesh.GetBdrAttributeArray()
+        v2v = {battr:mesh.GetBdrElementVertices(k)[0]
+               for k, battr in enumerate(battrs)}
+        
     from mfem.common.mpi_debug import nicePrint, niceCall                
     #nicePrint('s2l', s2l)
     mesh.extended_connectivity = {}
@@ -708,7 +712,23 @@ def get_extended_connectivity(mesh):
     me['line2edge'] = l2e
     me['line2vert'] = l2v
     me['vert2vert'] = v2v
+
+def get_reverse_connectivity(mesh):
+    def reverse_dict(d):
+        dd = defaultdict(list)        
+        for k in d:
+            for v in d[k]:
+                dd[v].append(k)
+        return dict(dd)
     
+    me = mesh.extended_connectivity
+    if me['vol2surf'] is not None:
+        me['surf2vol'] = reverse_dict(me['vol2surf'])
+    if me['surf2line'] is not None:
+        me['line2surf'] = reverse_dict(me['surf2line'])
+    if me['line2vert'] is not None:
+        me['vert2line'] = reverse_dict(me['line2vert'])        
+
 def vol2line(v2s, s2l):
     v2l =  {}
     for v in v2s:
@@ -744,10 +764,15 @@ def populate_plotdata(mesh, table, cells, cell_data):
 
     kedge = []
 
+    if mesh.Dimension() >= 2:
+        method = mesh.GetEdgeVertices
+    else:
+        method = mesh.GetElementVertices
+        
     if len(l2e) > 0:
         #kedge = np.array(sum([[key]*len(l2e[key]) for key in l2e], [])).astype(int)
         kedge = np.hstack([[key]*len(l2e[key]) for key in l2e]).astype(int, copy=False)
-        iverts = np.vstack([mesh.GetEdgeVertices(ie)
+        iverts = np.vstack([method(ie)
                         for key in l2e for ie in l2e[key]])
     else:
         iverts = np.atleast_1d([]).astype(int)

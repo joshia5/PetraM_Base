@@ -1,10 +1,13 @@
+# import pyCore
+# import mfem.par as mfem
+# from mfem.par import intArray
+# from mfem.par import Vector
+# from mfem.par import DenseMatrix
+# from mfem._par.pumi import ParPumiMesh
+# from mfem._par.pumi import ParMesh2ParPumiMesh
+
 import pyCore
-import mfem.par as mfem
-from mfem.par import intArray
-from mfem.par import Vector
-from mfem.par import DenseMatrix
-from mfem._par.pumi import ParPumiMesh
-from mfem._par.pumi import ParMesh2ParPumiMesh
+from petram.solver.std_solver_model import StdSolver, StandardSolver
 import os
 import numpy as np
 import math
@@ -15,7 +18,6 @@ import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('StdMeshAdaptSolver')
 rprint = debug.regular_print('StdMeshAdaptSolver')
 
-from petram.solver.std_solver_model import StdSolver, StandardSolver
 
 def vector3_to_nparray(vec):
   npa = np.array([vec.x(), vec.y(), vec.z()])
@@ -362,6 +364,14 @@ def ignore_refine_in_model_region(pumi_mesh, sizefield, region_tag):
 
 
 class StdMeshAdaptSolver(StdSolver):
+    @classmethod
+    def fancy_menu_name(self):
+        return 'AMR Stationary'
+
+    @classmethod
+    def fancy_tree_name(self):
+        return 'AMR Stationary'
+
     def panel1_param(self):
         return [#["Initial value setting",   self.init_setting,  0, {},],
                 ["physics model",   self.phys_model,  0, {},],
@@ -384,7 +394,7 @@ class StdMeshAdaptSolver(StdSolver):
         v["mesh_adapt_num"] = 0
         v["mesh_adapt_ar"] = 0.1
         return v
-                 
+
     def get_panel1_value(self):
         return (#self.init_setting,
                 self.phys_model,
@@ -396,11 +406,10 @@ class StdMeshAdaptSolver(StdSolver):
                 self.mesh_adapt_indicator,
                 self.mesh_adapt_num,
                 self.mesh_adapt_ar)
-    
     def import_panel1_value(self, v):
-        #self.init_setting = str(v[0])        
+        #self.init_setting = str(v[0])
         self.phys_model = str(v[0])
-        self.init_only = v[1]                
+        self.init_only = v[1]
         self.clear_wdir = v[2]
         self.assemble_real = v[3]
         self.save_parmesh = v[4]
@@ -410,16 +419,17 @@ class StdMeshAdaptSolver(StdSolver):
         self.mesh_adapt_ar = v[8]
 
     @debug.use_profiler
-    def run(self, engine, is_first = True, return_instance=False):
+    def run(self, engine, is_first=True, return_instance=False):
         dprint1("Entering run", is_first, self.fullpath())
         if self.clear_wdir:
             engine.remove_solfiles()
 
         instance = StandardMeshAdaptSolver(self, engine)
         instance.set_blk_mask()
-        if return_instance: return instance                    
+        if return_instance:
+            return instance
         # We dont use probe..(no need...)
-        #instance.configure_probes(self.probe)
+        # instance.configure_probes(self.probe)
 
         # get the fespaces order
         # TODO: there must be a better way to do this

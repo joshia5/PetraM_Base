@@ -288,7 +288,7 @@ class EvaluatorClient(Evaluator):
             print("response", response)
             print("output", output)
             assert False, "Unpickle failed"
-        #print 'output is', result
+        #print('output is', result)
         if result[0] == 'ok':
             return result[1]
         elif result[0] == 'echo':
@@ -339,13 +339,16 @@ class EvaluatorClient(Evaluator):
      
     def eval_pointcloud(self,  *params, **kparams):
         return self.__call_server('eval_pointcloud', *params, **kparams)
+     
+    def eval_integral(self,  *params, **kparams):
+        return self.__call_server('eval_integral', *params, **kparams)
     
     def eval_probe(self,  *params, **kparams):
         return self.__call_server('eval_probe', *params, **kparams)
 
     def terminate_all(self):
         try:
-            ret =  self.__call_server('terminate_all',
+            ret = self.__call_server('terminate_all',
                                       prompt='byebye',
                                       force_protocol1=True)
             

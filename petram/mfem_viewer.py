@@ -129,13 +129,22 @@ class MFEMViewer(BookViewer):
     def __init__(self, *args, **kargs):
         kargs['isattachable'] = False
         kargs['isinteractivetarget'] = False
+        kargs['ismultipage'] = False        
         BookViewer.__init__(self, *args, **kargs)
         extra_menu = wx.Menu()
         self.menuBar.Insert(self.menuBar.GetMenuCount()-1,
                             extra_menu, "MFEM")
         menus = MFEM_menus(self)
         ret = BuildMenu(extra_menu, menus)
-        self._solmenu = ret[ID_SOL_FOLDER]
+        
+        data = ret[ID_SOL_FOLDER]
+        if len(data) == 2:
+            self._solmenu, item = data
+            self._ID_SOL_FOLDER = item.GetId()
+        else:
+            self._solmenu = data            
+            self._ID_SOL_FOLDER = ID_SOL_FOLDER
+            
         self._hidemesh = True
         self._sel_mode = ''  # selecting particular geomgetry element
         self._view_mode = ''  # ('geom', 'mesh', 'phys')
@@ -207,6 +216,7 @@ class MFEMViewer(BookViewer):
         if self.model.variables.getvar('mesh') is None:
             try:
                 self.load_mesh()
+                self.engine.run_mesh_extension_prep(reset=True)
             except:
                 dialog.showtraceback(parent=self,
                                      txt='mesh file load error',
@@ -219,7 +229,10 @@ class MFEMViewer(BookViewer):
 
         self.canvas._popup_style = 1  # popup_skip_2d
         self.canvas.__class__ = MFEMViewerCanvas
-        #self.Bind(wx.EVT_ACTIVATE, self.onActivate)
+
+        # make an empty sol folder if it is not defined.
+        if self.model.param.eval('sol') is None:
+            self.model.scripts.helpers.make_new_sol()
 
     @property
     def view_mode_group(self):
@@ -323,7 +336,7 @@ class MFEMViewer(BookViewer):
                 self._hidemesh = True
 
     def onUpdateUI(self, evt):
-        if evt.GetId() == ID_SOL_FOLDER:
+        if evt.GetId() == self._ID_SOL_FOLDER:
             m = self._solmenu
             for item in m.GetMenuItems():
                 m.DestroyItem(item)
@@ -735,15 +748,22 @@ class MFEMViewer(BookViewer):
             self.model.variables.setvar('mesh', mesh)
             os.chdir(cdir)
 
-            err, exception = self.engine.run_config()
-            if err != 0:
-                assert False, "error in run_config"
         except:
             os.chdir(cdir)
             dialog.showtraceback(parent=self,
                                  txt='Mesh load error',
-                                 title='Error',
+                                 title='Error (Load Mesh)',
                                  traceback=exception)
+        try:
+            err, exception = self.engine.run_config()
+            if err != 0:
+                assert False, "error in run_config"
+        except:
+            dialog.showtraceback(parent=self,
+                                 txt='Error during run_config after loading mesh',
+                                 title='Error (run_config)',
+                                 traceback=exception)
+            
         if err != -1:
             self.plot_mfem_geom()
             self.use_toolbar_palette('petram_phys', mode='3D')
@@ -1816,6 +1836,7 @@ class MFEMViewer(BookViewer):
                   'face': 'face',
                   'edge': 'edge',
                   'point':'dot'}
+        if not mode in bmodes: return
         bmode = bmodes[mode]
 
         self.set_sel_mode(mode)

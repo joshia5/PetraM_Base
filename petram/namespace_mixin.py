@@ -4,6 +4,58 @@ import os
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('Namespace')
 
+class NSRef_mixin(object):
+    hide_ns_menu = False
+    def __init__(self, *args, **kwargs):
+        object.__init__(self)
+        self.reset_ns()
+    
+    def get_info_str(self):
+        if self.ns_name is not None:
+            return 'NS:'+self.ns_name
+        return ""
+    
+    def reset_ns(self):
+        if not hasattr(self, 'ns_name'):
+            self.ns_name = None
+        
+    def get_ns_name(self):
+        if not hasattr(self, 'ns_name'):
+            self.reset_ns()
+        return self.ns_name
+    
+    def find_ns_by_name(self):
+        '''
+        return NameSpace
+        '''
+        name = self.ns_name
+        root = self.root()
+        for obj in root.walk():
+            if not isinstance(obj, NS_mixin):
+                continue
+            if obj.get_ns_name() == name:
+                return obj._global_ns
+        return  self.root()['General']._global_ns
+
+    def find_nsobj_by_name(self):
+        '''
+        return model holding NameSpace for given name
+        '''
+        name = self.ns_name        
+        root = self.root()
+        for obj in root.walk():
+            if not isinstance(obj, NS_mixin):
+                continue
+            if obj.get_ns_name() == name:
+                return obj
+        return self.root()['General']
+    
+    def new_ns(self, name):
+        self.ns_name = name
+        
+    def delete_ns(self):
+        self.ns_name = None
+    
 class NS_mixin(object):
     hide_ns_menu = False
     def __init__(self, *args, **kwargs):
@@ -122,7 +174,7 @@ class NS_mixin(object):
         if ns_script is None:
             raise ValueError("namespace script is not found")                   
         err_string = ns_script.reload_script()
-        if err_string != '' and err_string is not None: 
+        if err_string != '' and err_string is not None:
             assert False, err_string
             
         self.ns_string = ns_script._script._script
@@ -192,13 +244,15 @@ class NS_mixin(object):
         from petram.helper.variables import variable, coefficient
         g['variable'] = variable
         g['coefficient'] = coefficient
-        
+
+
         if self.root() is self:
              if not hasattr(self.root(), "_variables"):
                  from petram.helper.variables import Variables            
                  self.root()._variables = Variables()
         else:
             self._local_ns = self.root()._variables
+
         if len(chain) == 0:
             raise ValueError("namespace chain is not found")
         # step1 (fill ns using upstream + constant (no expression)        
@@ -261,22 +315,28 @@ class NS_mixin(object):
         try:
             l = {}
             if (self.ns_string != '' and self.ns_string is not None):
-                 exec(self.ns_string, g, l)
+                 #exec(self.ns_string, g, l)
+                exec(self.ns_string, g)
             else:
                  pass ###return
         except Exception as e:
             import traceback
             assert False, traceback.format_exc()
 
-        for k in l:
-            g[k] = l[k]
-        
+        # 2021.08.25. passing g only above allows for list comprehension to work.
+        # for k in l:
+        #     g[k] = l[k]
+
         # step 5  re-eval attribute with self-namespace
         #         passing previous invalid as a list of variables
         #         to evaluate
-        result, invalid =  self.eval_attribute_expr(invalid)
+        result, invalid = self.eval_attribute_expr(invalid)
         for k in result:
             setattr(self, k, result[k])
+
+        #if self is not self.root()["General"] (Let's set it in General too)
+        from petram.helper.dot_dict import DotDict
+        g['general'] =  DotDict(self.root()["General"]._global_ns)
 
         # if something is still not known,,, raise
         if len(invalid) != 0:

@@ -108,12 +108,13 @@ def get_emesh_idx(obj, expr, solvars, phys):
            (n in g and isinstance(g[n], Variable))):
            for nn in g[n].dependency:
               idx = g[nn].get_emesh_idx(idx, g=g)
-           idx = g[n].get_emesh_idx(idx, g=g)
+
+           idx.extend(g[n].get_emesh_idx(idx, g=g))
            
     if len(idx) == 0:
         # if expression has no emehs dependence return 0 (use emesh = 0)
         idx = [0]
-    return idx
+    return list(set(idx))
        
     
 def eval_at_nodals(obj, expr, solvars, phys):
@@ -134,7 +135,7 @@ def eval_at_nodals(obj, expr, solvars, phys):
     names = code.co_names
 
     g = {}
-    #print solvars.keys()
+
     for key in phys._global_ns.keys():
        g[key] = phys._global_ns[key]
     for key in solvars.keys():
@@ -164,17 +165,17 @@ def eval_at_nodals(obj, expr, solvars, phys):
        if (n in g and isinstance(g[n], Variable)):
            if not g[n] in obj.knowns:
               obj.knowns[g[n]] = (
-                  g[n].nodal_values(iele = obj.ieles,
-                                    ibele = obj.ibeles,
-                                    elattr = obj.elattr, 
-                                    el2v = obj.elvert2facevert,
-                                    locs  = obj.locs,
-                                    elvertloc = obj.elvertloc,
-                                    wverts = obj.wverts,
-                                    mesh = obj.mesh()[obj.emesh_idx],
-                                    iverts_f = obj.iverts_f,
-                                    g  = g,
-                                    knowns = obj.knowns))
+                  g[n].nodal_values(iele=obj.ieles,
+                                    ibele=obj.ibeles,
+                                    elattr=obj.elattr, 
+                                    el2v=obj.elvert2facevert,
+                                    locs=obj.locs,
+                                    elvertloc=obj.elvertloc,
+                                    wverts=obj.wverts,
+                                    mesh=obj.mesh()[obj.emesh_idx],
+                                    iverts_f=obj.iverts_f,
+                                    g=g,
+                                    knowns=obj.knowns))
            #ll[n] = self.knowns[g[n]]
            ll_name.append(name_translation[n])
            ll_value.append(obj.knowns[g[n]])

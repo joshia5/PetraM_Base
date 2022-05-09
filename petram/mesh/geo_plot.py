@@ -236,7 +236,7 @@ def plot_geometry(viewer, ret, geo_phys='geometrical', lw=0):
 
         elem_idx0 = []
         eelem_idx0 = []
-        array_idx = np.zeros(len(verts))
+        array_idx = np.zeros(len(verts), dtype=int)
 
         for n in ['triangle_x', 'quad_x']:
             if not n in cells:
@@ -351,11 +351,19 @@ def plot_geometry(viewer, ret, geo_phys='geometrical', lw=0):
         else:
             vidx = cells['vertex']
             aidx = cell_data['vertex'][geo_phys]
-        vert = np.atleast_2d(np.squeeze(X[vidx]))
-        if len(vert) > 0:
-            obj = viewer.plot(vert[:, 0],
-                              vert[:, 1],
-                              vert[:, 2], 'ok',
+        if len(vidx) > 0:
+            vert = np.atleast_2d(np.squeeze(X[vidx]))
+        #if len(vert) > 0:
+            x = vert[:, 0]
+            if vert.shape[-1] > 1:
+                y = vert[:, 1]
+            else:
+                y = x*0
+            if vert.shape[-1] > 2:
+                z = vert[:, 2]
+            else:
+                z = y*0
+            obj = viewer.plot(x, y, z, 'ok',
                               array_idx=aidx,
                               linewidth=0)
             obj.rename('point')
