@@ -1017,9 +1017,9 @@ class Engine(object):
            M, B = self.prepare_M_B_blocks()
            X = self.assembled_blocks[1]
            Ae = None
-            M, B = self.prepare_M_B_blocks()
-            X = self.assembled_blocks[1]
-            Ae = None
+           M, B = self.prepare_M_B_blocks()
+           X = self.assembled_blocks[1]
+           Ae = None
 
         M, B, M_changed = self.fill_M_B_blocks(M, B, update=update)
 
