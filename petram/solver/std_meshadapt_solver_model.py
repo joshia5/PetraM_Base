@@ -1,3 +1,13 @@
+# import pyCore
+# from mfem.par import intArray
+# from mfem.par import Vector
+# from mfem.par import DenseMatrix
+# from mfem._par.pumi import ParPumiMesh
+# from mfem._par.pumi import ParMesh2ParPumiMesh
+import pyCore
+import mfem.par as mfem
+from mfem._par.pumi import ParPumiMesh
+from mfem._par.pumi import ParMesh2ParPumiMesh
 from petram.solver.std_solver_model import StdSolver, StandardSolver
 import pyCore
 import mfem.par as mfem
