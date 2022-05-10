@@ -1086,7 +1086,7 @@ class Engine(object):
             mm.update_param()
 
     def initialize_phys(self, phys, update=False):
-        is_complex = phys.is_complex()        
+        is_complex = phys.is_complex()
 
         # this is called from preprocess_modeldata
         # self.assign_sel_index(phys)
@@ -1095,11 +1095,30 @@ class Engine(object):
         if not update:
             self.allocate_fespace(phys)
         else:
-            # old_true_v_sizes = self.get_true_v_sizes(phys)
-            for key in self.fecfes_storage:
-                fec, fes = self.fecfes_storage[key]
+            num_fec = len(phys.get_fec())
+
+            count = 0
+            for name, elem in phys.get_fec():
+                vdim = phys.vdim
+                if hasattr(vdim, '__iter__'):
+                    vdim = vdim[count]
+                else:
+                    pass
+                emesh_idx = phys.emesh_idx
+                order = phys.fes_order(count)
+
+                if elem.startswith('RT'):
+                    vdim = 1
+                if elem.startswith('ND'):
+                    vdim = 1
+
+                dprint1("update_fespace: " + name)
+                is_new, fes = self.get_or_allocate_fecfes(name, emesh_idx, elem,
+                                                          order, vdim)
+                assert not is_new, "is_new has to be false at this point!"
                 fes.Update(False)
-        # self.allocate_fespace(phys)
+                count = count+1
+
         true_v_sizes = self.get_true_v_sizes(phys)
 
         flags = self.get_essential_bdr_flag(phys)
@@ -2585,19 +2604,6 @@ class Engine(object):
         sdim= mesh.SpaceDimension()
         dim = mesh.Dimension()
 
-        if self.__class__.__name__ == "ParallelEngine":
-            if self.pcounter == 0:
-                isParMesh = False
-
-        # is_new = False
-        # key = (emesh_idx, elem, order, dim, sdim, vdim, isParMesh)
-        # dprint1( "(emesh_idx, elem, order, dim, sdim, vdim, isParMesh) = " + str(key))
-	
-        # if key in self.fecfes_storage:
-        #     fec, fes = self.fecfes_storage[key]
-        # elif not make_new:
-        #     return False, None, None
-
         is_new = False
         key = (emesh_idx, elem, order, dim, sdim, vdim, isParMesh)
         dkey = ("emesh_idx", "elem", "order",
@@ -3559,7 +3565,6 @@ class ParallelEngine(Engine):
     def __init__(self, modelfile='', model=None):
         super(ParallelEngine, self).__init__(modelfile=modelfile, model=model)
         self.isParallel = True
-        self.pcounter = 0
 
     def run_mesh(self, meshmodel=None):
         from mpi4py import MPI
@@ -3685,27 +3690,14 @@ class ParallelEngine(Engine):
 
         return gf
 
-    def new_fespace(self,mesh, fec, vdim):
-        # Note at this point ParPumiMesh object would have already been cast
-        # into a ParMesh object so the following should work for the pumi adaptive
-        # workflow as well!
-        if mesh.__class__.__name__ == 'ParMesh' and self.pcounter > 0:
-            self.pcounter += 1
-            return  mfem.ParFiniteElementSpace(mesh, fec, vdim)
+    def new_fespace(self, mesh, fec, vdim):
+        if hasattr(mesh, 'GetComm'):
+            return mfem.ParFiniteElementSpace(mesh, fec, vdim)
         else:
-            self.pcounter += 1
-            return  mfem.FiniteElementSpace(mesh, fec, vdim)
+            return mfem.FiniteElementSpace(mesh, fec, vdim)
 
-    def new_matrix(self, init = True):
-        return  mfem.HypreParMatrix()
-    # def new_fespace(self, mesh, fec, vdim):
-    #     if hasattr(mesh, 'GetComm'):
-    #         return mfem.ParFiniteElementSpace(mesh, fec, vdim)
-    #     else:
-    #         return mfem.FiniteElementSpace(mesh, fec, vdim)
-
-    # def new_matrix(self, init=True):
-    #     return mfem.HypreParMatrix()
+    def new_matrix(self, init=True):
+        return mfem.HypreParMatrix()
 
     def new_blockmatrix(self, shape):
         from petram.helper.block_matrix import BlockMatrix
