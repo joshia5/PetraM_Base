@@ -1195,7 +1195,7 @@ class Engine(object):
                 continue
             mm.update_param()
 
-    def initialize_phys(self, phys,update=False):
+    def initialize_phys(self, phys, update=False):
         is_complex = phys.is_complex()
 
         # this is called from preprocess_modeldata
@@ -1206,11 +1206,30 @@ class Engine(object):
         if not update:
             self.allocate_fespace(phys)
         else:
-            # old_true_v_sizes = self.get_true_v_sizes(phys)
-            for key in self.fecfes_storage:
-                fec, fes = self.fecfes_storage[key]
+            num_fec = len(phys.get_fec())
+
+            count = 0
+            for name, elem in phys.get_fec():
+                vdim = phys.vdim
+                if hasattr(vdim, '__iter__'):
+                    vdim = vdim[count]
+                else:
+                    pass
+                emesh_idx = phys.emesh_idx
+                order = phys.fes_order(count)
+
+                if elem.startswith('RT'):
+                    vdim = 1
+                if elem.startswith('ND'):
+                    vdim = 1
+
+                dprint1("update_fespace: " + name)
+                is_new, fes = self.get_or_allocate_fecfes(name, emesh_idx, elem,
+                                                          order, vdim)
+                assert not is_new, "is_new has to be false at this point!"
                 fes.Update(False)
-        # self.allocate_fespace(phys)
+                count = count+1
+
         true_v_sizes = self.get_true_v_sizes(phys)
 
         flags = self.get_essential_bdr_flag(phys)
@@ -3805,7 +3824,6 @@ class ParallelEngine(Engine):
     def __init__(self, modelfile='', model=None):
         super(ParallelEngine, self).__init__(modelfile=modelfile, model=model)
         self.isParallel = True
-        self.pcounter = 0
 
     def run_mesh(self, meshmodel = None):
         import pyCore
