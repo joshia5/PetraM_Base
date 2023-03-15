@@ -70,8 +70,6 @@ def inspect_function_call(slf, fname, lno):
   print("")
 
 
->>>>>>> Working version of engine.py
-
 def iter_phys(phys_targets, *args):
     for phys in phys_targets:
         yield [phys] + [a[phys] for a in args]
