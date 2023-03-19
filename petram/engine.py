@@ -2793,10 +2793,6 @@ class Engine(object):
         sdim = mesh.SpaceDimension()
         dim = mesh.Dimension()
 
-        if self.__class__.__name__ == "ParallelEngine":
-            if self.pcounter == 0:
-                isParMesh = False
-
         is_new = False
         key = (emesh_idx, elem, order, dim, sdim, vdim, isParMesh)
         dkey = ("emesh_idx", "elem", "order",
@@ -3936,16 +3932,14 @@ class ParallelEngine(Engine):
         return gf
 
     def new_fespace(self,mesh, fec, vdim):
-        if mesh.__class__.__name__ == 'ParMesh' and self.pcounter > 0:
-            self.pcounter += 1
-            return  mfem.ParFiniteElementSpace(mesh, fec, vdim)
+        if hasattr(mesh, 'GetComm'):
+            return mfem.ParFiniteElementSpace(mesh, fec, vdim)
         elif mesh.__class__.__name__ == 'ParPumiMesh' and self.pcounter > 0:
             self.pcounter += 1
             aux_mesh = mfem.ParMesh(MPI.COMM_WORLD, mesh)
             return  mfem.ParFiniteElementSpace(aux_mesh, fec, vdim)
         else:
-            self.pcounter += 1
-            return  mfem.FiniteElementSpace(mesh, fec, vdim)
+            return mfem.FiniteElementSpace(mesh, fec, vdim)
          
     def new_matrix(self, init = True):
         return  mfem.HypreParMatrix()
