@@ -151,12 +151,18 @@ class PumiMesh(Mesh):
         if not pyCore.PCU_Comm_Initialized():
             pyCore.PCU_Comm_Init()
 
-
-        # register simmetrix only if it is available in pyCore
-        if hasattr(pyCore, 'start_sim'):
+        # register simmetrix only if it is available in pyCore and not already
+        # registered
+        if hasattr(pyCore, 'start_sim') and not pyCore.is_sim_started():
             pyCore.start_sim('simlog.txt')
             pyCore.gmi_sim_start()
             pyCore.gmi_register_sim()
+
+
+        gmodel = 0
+        if hasattr(pyCore, 'start_sim'):
+            native_model_path = model_path[0:-4] + "_nat.x_t"
+            gmodel = pyCore.gmi_sim_load(native_model_path, model_path)
 
         # register other modelers
         pyCore.gmi_register_mesh()
