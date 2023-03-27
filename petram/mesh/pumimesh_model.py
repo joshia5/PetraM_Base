@@ -204,7 +204,7 @@ class PumiMesh(Mesh):
           model_type = pumi_mesh.getModelType(pumi_mesh.toModel(e))
           if model_type == (dim-1):
             mesh.GetBdrElement(bdr_cnt).SetAttribute(model_tag)
-          bdr_cnt += 1
+            bdr_cnt += 1
         pumi_mesh.end(it)
 
         it = pumi_mesh.begin(dim)
