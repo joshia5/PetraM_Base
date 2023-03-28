@@ -192,6 +192,7 @@ class PumiMesh(Mesh):
 
         # convert pumi_mesh to mfem mesh
         mesh = mfem.ParMesh(MPI.COMM_WORLD, pumi_mesh)
+        # mesh = pumi.ParPumiMesh(MPI.COMM_WORLD, pumi_mesh)
 
         # reverse classifications based on model tags
         dim = pumi_mesh.getDimension()
@@ -224,7 +225,7 @@ class PumiMesh(Mesh):
 
         mesh.SetAttributes();
 
-        self.root()._par_pumi_mesh = mesh # hack to be able to access par_pumi_mesh later!
+        # self.root()._par_pumi_mesh = mesh # hack to be able to access par_pumi_mesh later!
 
         try:
           mesh.GetNBE()
