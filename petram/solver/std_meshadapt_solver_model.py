@@ -26,6 +26,9 @@ import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('StdMeshAdaptSolver')
 rprint = debug.regular_print('StdMeshAdaptSolver')
 
+def vector3_to_nparray(vec):
+    npa = np.array([vec.x(), vec.y(), vec.z()])
+    return npa
 
 def get_field_z_averaged(pumi_mesh, field_name, field_type, grid):
   # get the mfem mesh and fespace
@@ -543,8 +546,12 @@ class StdMeshAdaptSolver(StdSolver):
             pyCore.destroyField(e_imag_ip)
 
             adapt_input = pyCore.configure(pumi_mesh, size_field)
-            adapt_input.shouldFixShape = True
-            adapt_input.shouldCoarsen = True
+            adapt_input.shouldFixShape = False
+            adapt_input.shouldCoarsen = False
+            adapt_input.shouldSnap = False
+            adapt_input.shouldTranferParametric = False
+            #adapt_input.shouldFixShape = True
+            #adapt_input.shouldCoarsen = True
             adapt_input.maximumIterations = 3
             adapt_input.goodQuality = 0.35 * 0.35 * 0.35 # mean-ratio cubed
 
