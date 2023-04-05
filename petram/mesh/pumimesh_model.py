@@ -181,10 +181,13 @@ class PumiMesh(Mesh):
 
         mesh_shape = pumi_mesh.getShape()
         mesh_order = mesh_shape.getOrder()
+        print("mesh order after mesh load", mesh_order);
 
         if not mesh_order == 1:
             bezier_curver = pyCore.BezierCurver(pumi_mesh, 2, 0);
+            print("running bezier curver with order 2")
             bezier_curver.run();
+            print("bezier curver ran successfully")
 
         self.root()._pumi_mesh = pumi_mesh # hack to be able to access pumi_mesh later!
 
@@ -192,22 +195,30 @@ class PumiMesh(Mesh):
 
         # convert pumi_mesh to mfem mesh
         mesh = mfem.ParMesh(MPI.COMM_WORLD, pumi_mesh)
-        # mesh = pumi.ParPumiMesh(MPI.COMM_WORLD, pumi_mesh)
 
         # reverse classifications based on model tags
         dim = pumi_mesh.getDimension()
         it = pumi_mesh.begin(dim-1)
         bdr_cnt = 0
+        #print("203")
         while True:
           e = pumi_mesh.iterate(it)
           if not e: break
+          #print("207")
           model_tag  = pumi_mesh.getModelTag(pumi_mesh.toModel(e))
+          #print("209")
           model_type = pumi_mesh.getModelType(pumi_mesh.toModel(e))
+          #print("211")
           if model_type == (dim-1):
-            mesh.SetBdrAttribute(bdr_cnt, model_tag)
+            #bdrelm = mesh.GetBdrElement(bdr_cnt)
+            #print("214 cnt ", bdr_cnt, "g tag ",model_tag)
+            mesh.SetBdrAttribute(bdr_cnt,model_tag)
+            #bdrelm.SetAttribute(model_tag)
+            #print("216")
             bdr_cnt += 1
         pumi_mesh.end(it)
 
+        #print("220")
         it = pumi_mesh.begin(dim)
         elem_cnt = 0
         while True:
@@ -220,6 +231,7 @@ class PumiMesh(Mesh):
             elem_cnt += 1
         pumi_mesh.end(it)
 
+        #print("227")
         print(type(mesh))
         print(id(mesh))
 
@@ -227,6 +239,7 @@ class PumiMesh(Mesh):
 
         # self.root()._par_pumi_mesh = mesh # hack to be able to access par_pumi_mesh later!
 
+        #print("235")
         try:
           mesh.GetNBE()
           return mesh

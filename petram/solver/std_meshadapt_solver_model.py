@@ -56,13 +56,13 @@ def process_size_field(pumi_mesh, size_field, rmin = 0.25, rmax = 1.5):
   current_size = pumi_mesh.getCurrentIsoSize("current_size")
   fs = pyCore.getShape(current_size)
 
-  # min_size0 = pumi_mesh.getMinOfScalarField(size_field);
-  # max_size0 = pumi_mesh.getMaxOfScalarField(size_field);
-  # print("before process min and max are ", min_size0, max_size0)
+  min_size0 = pumi_mesh.getMinOfScalarField(size_field);
+  max_size0 = pumi_mesh.getMaxOfScalarField(size_field);
+  #print("before process min and max are ", min_size0, max_size0)
 
-  # min_current = pumi_mesh.getMinOfScalarField(current_size);
-  # max_current = pumi_mesh.getMaxOfScalarField(current_size);
-  # print("before process min and max of current are ", min_current, max_current)
+  min_current = pumi_mesh.getMinOfScalarField(current_size);
+  max_current = pumi_mesh.getMaxOfScalarField(current_size);
+  print("before process min and max of current are ", min_current, max_current)
 
 
 
@@ -83,8 +83,8 @@ def process_size_field(pumi_mesh, size_field, rmin = 0.25, rmax = 1.5):
 
   # find the min relative_size across the whole mesh
   min_size = pumi_mesh.getMinOfScalarField(relative_size);
-  # max_size = pumi_mesh.getMaxOfScalarField(relative_size);
-  # print("before modify  min and max of relative are ", min_size, max_size)
+  max_size = pumi_mesh.getMaxOfScalarField(relative_size);
+  print("before modify  min and max of relative are ", min_size, max_size)
   # scale the relative_size such that the min is equal to rmin
   # and cap it by rmax
   it = pumi_mesh.begin(0)
@@ -102,9 +102,9 @@ def process_size_field(pumi_mesh, size_field, rmin = 0.25, rmax = 1.5):
   pumi_mesh.end(it)
   pyCore.synchronize(relative_size)
 
-  # min_size_ = pumi_mesh.getMinOfScalarField(relative_size);
-  # max_size_ = pumi_mesh.getMaxOfScalarField(relative_size);
-  # print("after modify  min and max of relative are ", min_size_, max_size_)
+  min_size_ = pumi_mesh.getMinOfScalarField(relative_size);
+  max_size_ = pumi_mesh.getMaxOfScalarField(relative_size);
+  print("after modify  min and max of relative are ", min_size_, max_size_)
 
   # update the size_field to be relative_size*current_size
   it = pumi_mesh.begin(0)
@@ -120,9 +120,9 @@ def process_size_field(pumi_mesh, size_field, rmin = 0.25, rmax = 1.5):
   pumi_mesh.end(it)
   pyCore.synchronize(size_field)
 
-  # min_size2 = pumi_mesh.getMinOfScalarField(size_field);
-  # max_size2 = pumi_mesh.getMaxOfScalarField(size_field);
-  # print("after process min and max are ", min_size2, max_size2)
+  min_size2 = pumi_mesh.getMinOfScalarField(size_field);
+  max_size2 = pumi_mesh.getMaxOfScalarField(size_field);
+  print("after process min and max are ", min_size2, max_size2)
 
 
   # clean up relative_size current_size
@@ -350,7 +350,7 @@ def get_field_component(pumi_mesh, in_field, component):
 
   return field_component
 
-def ignore_refine_in_model_region(pumi_mesh, sizefield, region_tag):
+def ignore_refine_in_model_region(pumi_mesh, sizefield, region_tag, sdim):
   it = pumi_mesh.begin(0)
   while True:
     ent = pumi_mesh.iterate(it)
@@ -358,7 +358,8 @@ def ignore_refine_in_model_region(pumi_mesh, sizefield, region_tag):
       break
     mtag = pumi_mesh.getModelTag(pumi_mesh.toModel(ent))
     mdim = pumi_mesh.getModelType(pumi_mesh.toModel(ent))
-    if region_tag == mtag or pumi_mesh.isBoundingModelRegion(region_tag, mdim, mtag):
+    if region_tag == mtag and mdim == sdim:
+    #if region_tag == mtag or pumi_mesh.isBoundingModelRegion(region_tag, mdim, mtag):
       current_size = pumi_mesh.measureSize(ent)
       pyCore.setScalar(sizefield, ent, 0, current_size)
   pumi_mesh.end(it)
@@ -566,7 +567,7 @@ class StdMeshAdaptSolver(StdSolver):
             # relative_size_field = compute_relative_size(pumi_mesh, size_field)
 
             size_field = pyCore.getSPRSizeField(e_real_ip, float(self.mesh_adapt_ar))
-            minsize = process_size_field(pumi_mesh, size_field, 0.25, 1.5)
+            minsize = process_size_field(pumi_mesh, size_field, 0.1, 1.50)
             print("min size is ", minsize)
 
             min_of_size_field = pumi_mesh.getMinOfScalarField(size_field)
@@ -580,9 +581,9 @@ class StdMeshAdaptSolver(StdSolver):
             before_prefix = "before_adapt_"+str(adapt_loop_no);
             if mesh_order == 1:
                 pyCore.writeASCIIVtkFiles(before_prefix, pumi_mesh);
-            # else:
-            #     pyCore.writeCurvedVtuFiles(pumi_mesh, 4, 8, before_prefix);
-            #     pyCore.writeCurvedWireFrame(pumi_mesh, 8, before_prefix);
+            else:
+                #pyCore.writeCurvedVtuFiles(pumi_mesh, 4, 4, before_prefix);
+                pyCore.writeCurvedWireFrame(pumi_mesh, 4, before_prefix);
 
             pumi_mesh.removeField(e_real)
             pumi_mesh.removeField(e_imag)
@@ -594,10 +595,15 @@ class StdMeshAdaptSolver(StdSolver):
             pumi_mesh.removeField(e_imag_ip)
             pyCore.destroyField(e_imag_ip)
 
+            ignore_refine_in_model_region(pumi_mesh, size_field, 52, 2)
+            #ignore_refine_in_model_region(pumi_mesh, size_field, 123, 2)
+            #ignore_refine_in_model_region(pumi_mesh, size_field, 171, 2)
             adapt_input = pyCore.configure(pumi_mesh, size_field)
-            adapt_input.shouldFixShape = True
-            adapt_input.shouldCoarsen = True
-            adapt_input.maximumIterations = 3
+            adapt_input.shouldFixShape = False
+            adapt_input.shouldCoarsen = False
+            adapt_input.shouldCollapse = False
+            adapt_input.shouldSnap = False
+            #adapt_input.maximumIterations = 3
             adapt_input.goodQuality = 0.35 * 0.35 * 0.35 # mean-ratio cubed
 
             # DEBUG for debugging order 1 case
@@ -618,9 +624,11 @@ class StdMeshAdaptSolver(StdSolver):
             after_prefix = "after_adapt_"+str(adapt_loop_no);
             if mesh_order == 1:
                 pyCore.writeASCIIVtkFiles(after_prefix, pumi_mesh);
-            # else:
-            #     pyCore.writeCurvedVtuFiles(pumi_mesh, 4, 8, after_prefix);
-            #     pyCore.writeCurvedWireFrame(pumi_mesh, 8, after_prefix);
+            else:
+                print("after adapt writing wire of order", mesh_order, after_prefix);
+                #pyCore.writeCurvedVtuFiles(pumi_mesh, 4, 4, after_prefix);
+                pyCore.writeCurvedWireFrame(pumi_mesh, 4, after_prefix);
+                print("wrote mesh after adapt, now cleaning up pumi...")
 
             if mesh_order == 1:
                 native_name = "pumi_mesh_after_adapt_"+str(adapt_loop_no)+"_.smb";
