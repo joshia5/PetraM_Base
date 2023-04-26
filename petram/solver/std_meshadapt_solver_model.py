@@ -358,11 +358,33 @@ def ignore_refine_in_model_region(pumi_mesh, sizefield, region_tag, sdim):
       break
     mtag = pumi_mesh.getModelTag(pumi_mesh.toModel(ent))
     mdim = pumi_mesh.getModelType(pumi_mesh.toModel(ent))
-    if region_tag == mtag and mdim == sdim:
+    if (sdim == 3):
+      if (region_tag == mtag and mdim == sdim) or pumi_mesh.isBoundingModelRegion(region_tag, mdim, mtag):
+        current_size = pumi_mesh.measureSize(ent)
+        pyCore.setScalar(sizefield, ent, 0, current_size)
+    if (sdim == 2):
+      if (region_tag == mtag and mdim == sdim):
+        current_size = pumi_mesh.measureSize(ent)
+        pyCore.setScalar(sizefield, ent, 0, current_size)
+  pumi_mesh.end(it)
+  print("bef sync")
+  pyCore.synchronize(sizefield)
+  print("aft sync")
+
+def refine_in_model_region(pumi_mesh, sizefield, region_tag, sdim):
+  it = pumi_mesh.begin(0)
+  while True:
+    ent = pumi_mesh.iterate(it)
+    if not ent:
+      break
+    mtag = pumi_mesh.getModelTag(pumi_mesh.toModel(ent))
+    mdim = pumi_mesh.getModelType(pumi_mesh.toModel(ent))
+    if (not(region_tag == mtag and mdim == sdim)):
     #if region_tag == mtag or pumi_mesh.isBoundingModelRegion(region_tag, mdim, mtag):
       current_size = pumi_mesh.measureSize(ent)
       pyCore.setScalar(sizefield, ent, 0, current_size)
   pumi_mesh.end(it)
+  pyCore.synchronize(sizefield)
 
 
 class StdMeshAdaptSolver(StdSolver):
@@ -455,6 +477,7 @@ class StdMeshAdaptSolver(StdSolver):
         instance.ma_save_mfem(adapt_loop_no, parmesh = True)
         while adapt_loop_no < int(self.mesh_adapt_num):
             engine.sol = instance.sol
+            print("fin. instance solve")
             dprint1(debug.format_memory_usage())
 
 
@@ -462,10 +485,12 @@ class StdMeshAdaptSolver(StdSolver):
             y = engine.i_x[0]
             # par_pumi_mesh = self.root()._par_pumi_mesh
 
+            print("466")
             par_pumi_mesh = ParMesh2ParPumiMesh(engine.meshes[0])
             # par_pumi_emesh = ParMesh2ParPumiMesh(engine.emeshes[0])
             pumi_mesh = self.root()._pumi_mesh
 
+            print("creaate mesh 471")
             # transfer the e field to a nedelec field in pumi
             e_real = pyCore.createField(pumi_mesh,
                                         "e_real_nd",
@@ -476,6 +501,7 @@ class StdMeshAdaptSolver(StdSolver):
                                         pyCore.SCALAR,
                                         pyCore.getNedelec(order))
 
+            print("creaate mesh 482")
 	    # nodal h1 fields for visualization
             e_real_projected = pyCore.createField(pumi_mesh,
                                                   "e_real_projected",
@@ -486,6 +512,7 @@ class StdMeshAdaptSolver(StdSolver):
                                                    pyCore.VECTOR,
                                                    pyCore.getH1Shape(order))
 
+            print("creaate mesh 493")
 	    # integration points for error estimation
             ip_order = 2
             e_real_ip = pyCore.createIPField(pumi_mesh,
@@ -497,18 +524,30 @@ class StdMeshAdaptSolver(StdSolver):
                                            pyCore.VECTOR,
                                            ip_order)
 
+            print("creaate mesh 505")
             par_pumi_mesh.NedelecFieldMFEMtoPUMI(pumi_mesh, x, e_real)
             par_pumi_mesh.NedelecFieldMFEMtoPUMI(pumi_mesh, y, e_imag)
+            print("creaate mesh 508")
 
             pyCore.projectNedelecField(e_real_projected, e_real)
             pyCore.projectNedelecField(e_imag_projected, e_imag)
+            print("creaate mesh 512")
 
             pyCore.projectNedelecField(e_real_ip, e_real)
             pyCore.projectNedelecField(e_imag_ip, e_imag)
+            from mpi4py import MPI
+            #MPI.COMM_WORLD.Barrier()
+            print("creaate mesh 517")
 
             cap_field_by_size(pumi_mesh, e_real_ip, 15.0);
             cap_field_by_size(pumi_mesh, e_imag_ip, 15.0);
+            #MPI.COMM_WORLD.Barrier()
+            print("521")
 
+            ifes = engine.r_ifes("rEf")
+            e_phi_r_gf = engine.r_x[ifes]
+            e_phi_i_gf = engine.i_x[ifes]
+            '''
 
             # add fields that need to be transferred here
             e_phi_r = pyCore.createField(pumi_mesh,
@@ -527,12 +566,16 @@ class StdMeshAdaptSolver(StdSolver):
                                              "e_phi_i_mag",
                                              pyCore.SCALAR,
                                              pyCore.getH1Shape(order))
+            MPI.COMM_WORLD.Barrier()
+            print("540")
 
-            ifes = engine.r_ifes("rEf")
-            e_phi_r_gf = engine.r_x[ifes]
-            e_phi_i_gf = engine.i_x[ifes]
-            par_pumi_mesh.FieldMFEMtoPUMI(pumi_mesh, e_phi_r_gf, e_phi_r, e_phi_r_mag)
-            par_pumi_mesh.FieldMFEMtoPUMI(pumi_mesh, e_phi_i_gf, e_phi_i, e_phi_i_mag)
+            MPI.COMM_WORLD.Barrier()
+            print("545")
+            par_pumi_mesh.VectorFieldMFEMtoPUMI(pumi_mesh, e_phi_r_gf, e_phi_r, e_phi_r_mag)
+            par_pumi_mesh.VectorFieldMFEMtoPUMI(pumi_mesh, e_phi_i_gf, e_phi_i, e_phi_i_mag)
+            #par_pumi_mesh.FieldMFEMtoPUMI(pumi_mesh, e_phi_r_gf, e_phi_r, e_phi_r_mag)
+            #par_pumi_mesh.FieldMFEMtoPUMI(pumi_mesh, e_phi_i_gf, e_phi_i, e_phi_i_mag)
+            print("548")
 
             pumi_mesh.removeField(e_phi_r_mag)
             pyCore.destroyField(e_phi_r_mag)
@@ -566,8 +609,9 @@ class StdMeshAdaptSolver(StdSolver):
             # limit_coarsen(pumi_mesh, size_field, 1.5)
             # relative_size_field = compute_relative_size(pumi_mesh, size_field)
 
+            '''
             size_field = pyCore.getSPRSizeField(e_real_ip, float(self.mesh_adapt_ar))
-            minsize = process_size_field(pumi_mesh, size_field, 0.1, 1.50)
+            minsize = process_size_field(pumi_mesh, size_field, 0.25, 0.75)
             print("min size is ", minsize)
 
             min_of_size_field = pumi_mesh.getMinOfScalarField(size_field)
@@ -595,15 +639,18 @@ class StdMeshAdaptSolver(StdSolver):
             pumi_mesh.removeField(e_imag_ip)
             pyCore.destroyField(e_imag_ip)
 
-            ignore_refine_in_model_region(pumi_mesh, size_field, 52, 2)
-            #ignore_refine_in_model_region(pumi_mesh, size_field, 123, 2)
-            #ignore_refine_in_model_region(pumi_mesh, size_field, 171, 2)
+            #refine_in_model_region(pumi_mesh, size_field, 261, 3) #3d lhcd
+            #refine_in_model_region(pumi_mesh, size_field, 52924, 3) #cmod core-rgn
+            #ignore_refine_in_model_region(pumi_mesh, size_field, 21263, 3) #cmod vacuum
+            #ignore_refine_in_model_region(pumi_mesh, size_field, 75, 3) #3d lhcd
+            print("ok641")
+            ignore_refine_in_model_region(pumi_mesh, size_field, 52, 2) #2d
             adapt_input = pyCore.configure(pumi_mesh, size_field)
             adapt_input.shouldFixShape = False
             adapt_input.shouldCoarsen = False
             adapt_input.shouldCollapse = False
             adapt_input.shouldSnap = False
-            #adapt_input.maximumIterations = 3
+            adapt_input.maximumIterations = 3
             adapt_input.goodQuality = 0.35 * 0.35 * 0.35 # mean-ratio cubed
 
             # DEBUG for debugging order 1 case
@@ -687,11 +734,14 @@ class StdMeshAdaptSolver(StdSolver):
             # self.root()._par_pumi_mesh = par_pumi_mesh
             # self.root()._pumi_mesh = pumi_mesh
 
+            #after_prefix_mfem = "mfem_after_adapt_"+str(adapt_loop_no)+".mesh";
+            #adapted_mesh.Print(after_prefix_mfem)
 
             # engine.meshes[0] = mfem.ParMesh(pyCore.PCU_Get_Comm(), par_pumi_mesh)
             engine.emeshes[0] = engine.meshes[0]
             # reorient the new mesh
-            engine.meshes[0].ReorientTetMesh()
+            print('ok713')
+            #engine.meshes[0].ReorientTetMesh() # deprecated fn
 
             # the rest of the updates happen here
             instance.ma_update_form_sol_variables()
@@ -709,16 +759,22 @@ class StdMeshAdaptSolver(StdSolver):
             e_phi_gf_i_new = engine.i_x[ifes_new]
 
             # project e_phi back to an mfem gridfunction
+            '''
             e_phi_gf_r_transferred = mfem.ParGridFunction(e_phi_gf_r_new.ParFESpace())
+            print("ok 734")
             par_pumi_mesh.FieldPUMItoMFEM(pumi_mesh, e_phi_r, e_phi_gf_r_transferred)
+            print("ok 736")
             pumi_mesh.removeField(e_phi_r)
             pyCore.destroyField(e_phi_r)
+            
 
 
+            
             e_phi_gf_i_transferred = mfem.ParGridFunction(e_phi_gf_i_new.ParFESpace())
             par_pumi_mesh.FieldPUMItoMFEM(pumi_mesh, e_phi_i, e_phi_gf_i_transferred)
             pumi_mesh.removeField(e_phi_i)
             pyCore.destroyField(e_phi_i)
+            
 
             # e_phi_gf_r_new -= e_phi_gf_r_transferred
             # e_phi_gf_i_new -= e_phi_gf_i_transferred
@@ -742,6 +798,7 @@ class StdMeshAdaptSolver(StdSolver):
             # v_2 -= v_1
             # dprint1("v2-v1", v_2)
             # dprint1(">>>>>>> ==== vector norm of difference is ", v_2.Norml2())
+            '''
 
         return is_first
 
