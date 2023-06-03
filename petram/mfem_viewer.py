@@ -235,6 +235,11 @@ class MFEMViewer(BookViewer):
         if self.model.param.eval('sol') is None:
             self.model.scripts.helpers.make_new_sol()
 
+        import logging
+        numba_logger = logging.getLogger('numba')
+        numba_logger.setLevel(logging.WARNING)
+        print("numba debug logging is suppressed")            
+
     @property
     def view_mode_group(self):
         return self._view_mode_group
@@ -1676,26 +1681,6 @@ class MFEMViewer(BookViewer):
             obj = make_remote_connection(self.model, new_name)
             self.model.param.setvar('host', '='+obj.get_full_path())
 
-    def onServerNewDir(self, evt):
-        from petram.remote.client_script import wdir_from_datetime
-
-        remote = self.model.param.eval('remote')
-        # this assumes file_sep is "/" on server..
-        if remote is not None and remote['rwdir'].split('/')[-1] != '':
-            txt = remote['rwdir'].split('/')[-1]+'_new'
-        else:
-            txt = wdir_from_datetime()
-
-        from ifigure.widgets.dialog import textentry
-        f, txt = textentry(self, message='Enter remote directory name',
-                           title='Creating remote directory',
-                           def_string=txt, center=True)
-        if not f:
-            return
-
-        from petram.remote.client_script import prepare_remote_dir
-
-        prepare_remote_dir(self.model, txt)
 
     def onServerSolve(self, evt):
         m = self.model.param.getvar('mfem_model')
@@ -1737,6 +1722,16 @@ class MFEMViewer(BookViewer):
         if not success:
             q = {'type': '',
                  'queues': [{'name': 'failed to read queue config'}, ]}
+
+        if q["queues"][0]['name'] == ' no queue for a user':
+            from ifigure.widgets.dialog import message
+            ret = message(parent=self,
+                          message="You do not have permission to access use to Petra-M on this computer system.",
+                          title="No queue is available",
+                          icon=wx.ICON_EXCLAMATION,
+                          center_on_screen=False,
+                          center_on_parent=True,)
+            return
 
         setting = get_job_submisson_setting(self, remote['name'].upper(),
                                             value=values,
