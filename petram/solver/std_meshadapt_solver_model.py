@@ -480,9 +480,49 @@ class StdMeshAdaptSolver(StdSolver):
             print("fin. instance solve")
             dprint1(debug.format_memory_usage())
 
-
             x = engine.r_x[0]
             y = engine.i_x[0]
+            zero_const_coeff = mfem.ConstantCoefficient(0.0)
+
+            # Space for the discontinuous (original) flux
+            one_const_coeff = mfem.ConstantCoefficient(1.0)
+            integ = mfem.DiffusionIntegrator(one_const_coeff)
+            print("fe order ", order)
+            flux_fec = mfem.ND_FECollection(order, 3)
+            #flux_fec = mfem.L2_FECollection(order, 3)
+            flux_fes = mfem.ParFiniteElementSpace(engine.meshes[0], 
+                flux_fec, 3)
+            errors = mfem.Vector(engine.meshes[0].GetNE())
+
+            # Space for the smoothed (conforming) flux
+            norm_p = 1.0;
+            smooth_flux_fec = mfem.ND_FECollection(order, 3)
+            #smooth_flux_fec = mfem.RT_FECollection(order-1, 3)
+            smooth_flux_fes = mfem.ParFiniteElementSpace(engine.meshes[0],
+                smooth_flux_fec, 1)
+
+            ##estimator = mfem.L2ZienkiewiczZhuEstimator(integ, x, flux_fes,
+                                               #smooth_flux_fes)
+            totErr = 0.0
+            print("ok 507")
+            #totErr = mfem.L2ZZErrorEstimator(integ, x, smooth_flux_fes,
+                #flux_fes, errors, 1, 1e-12, 200) # cannot use CalcDShape with vector FE
+            print('tot Err', totErr)
+
+            '''
+            sumErr = estimator.GetTotalError()
+            print('sum Err0', sumErr)
+            #estimator.ComputeEstimates()
+            sumErr = estimator.GetTotalError()
+            print('sum Err1', sumErr)
+            #errors = estimator.GetLocalErrors()
+            '''
+            '''
+            l2_error_r_0 = x.ComputeL2Error(zero_const_coeff)
+            l2_error_i_0 = y.ComputeL2Error(zero_const_coeff)
+            print(">>>>>>> ==== l2 errors before adapt r/i are ",
+                l2_error_r_0, l2_error_i_0)
+            '''
             # par_pumi_mesh = self.root()._par_pumi_mesh
 
             print("466")
@@ -496,6 +536,7 @@ class StdMeshAdaptSolver(StdSolver):
                                         "e_real_nd",
                                         pyCore.SCALAR,
                                         pyCore.getNedelec(order))
+
             e_imag = pyCore.createField(pumi_mesh,
                                         "e_imag_nd",
                                         pyCore.SCALAR,
@@ -544,10 +585,10 @@ class StdMeshAdaptSolver(StdSolver):
             #MPI.COMM_WORLD.Barrier()
             print("521")
 
+            '''
             ifes = engine.r_ifes("rEf")
             e_phi_r_gf = engine.r_x[ifes]
             e_phi_i_gf = engine.i_x[ifes]
-            '''
 
             # add fields that need to be transferred here
             e_phi_r = pyCore.createField(pumi_mesh,
@@ -728,6 +769,16 @@ class StdMeshAdaptSolver(StdSolver):
             pumi_mesh.end(it)
             adapted_mesh.SetAttributes()
 
+            # write ser mesh
+            mesh_path = "/lore/joshia5/Meshes/RF/test_ser.mesh";
+            '''
+            #mesh_path = "/lore/joshia5/Meshes/RF/assemble/Prat0p5_ini314kref1mil_p2.mesh";
+            std::ofstream mesh_ofs(mesh_path);
+            mesh_ofs.precision(8);
+            '''
+            adapted_mesh.ParPrintSerToFile(mesh_path, 16);
+            
+
             par_pumi_mesh.UpdateMesh(adapted_mesh)
             # update the _par_pumi_mesh and _pumi_mesh as well
 
@@ -753,10 +804,17 @@ class StdMeshAdaptSolver(StdSolver):
             adapt_loop_no = adapt_loop_no + 1
             instance.ma_save_mfem(adapt_loop_no, parmesh = True)
 
+            #size_field = pyCore.getSPRSizeField(e_real_ip, float(self.mesh_adapt_ar))
+
             # measure error as the difference between e_phi_gf_transferred and e_phi_gf_new
-            ifes_new = engine.r_ifes("rEf")
-            e_phi_gf_r_new = engine.r_x[ifes_new]
-            e_phi_gf_i_new = engine.i_x[ifes_new]
+            #ifes_new = engine.r_ifes("rEf")
+            '''
+            e_gf_r_new = engine.r_x[0]
+            e_gf_i_new = engine.i_x[0]
+            l2_error_r = e_gf_r_new.ComputeL2Error(zero_const_coeff)
+            l2_error_i = e_gf_i_new.ComputeL2Error(zero_const_coeff)
+            print(">>>>>>> ==== l2 errors r/i are ", l2_error_r, l2_error_i)
+            '''
 
             # project e_phi back to an mfem gridfunction
             '''
